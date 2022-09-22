@@ -1,0 +1,288 @@
+serd (0.30.10-2) unstable; urgency=medium
+
+  * Move python3-sphinx to Build-Depends-Indep to fix Cross-Build
+    (Closes: #983378) Thx to Nilesh!
+
+ -- Dennis Braun <d_braun@kabelmail.de>  Thu, 29 Apr 2021 21:30:07 +0200
+
+serd (0.30.10-1) unstable; urgency=medium
+
+  * New upstream version 0.30.10
+  * Re-enable and fix doc installation
+  * Refresh ldconfig patch
+  * Link js files from libjs-sphinxdoc & libjs-underscore
+    to not install duplicates
+  * Fix lintian-overrides
+  * d/watch: Use pgpmode=auto instead of pgpsigurlmangle
+
+ -- Dennis Braun <d_braun@kabelmail.de>  Sat, 23 Jan 2021 01:21:34 +0100
+
+serd (0.30.8-1) unstable; urgency=medium
+
+  * New upstream version 0.30.8
+  * Disable html doc build for now, missing sphinx_lv2_theme
+  * Revert jquery.js linking
+  * Bump S-V to 4.5.1, no changes needed
+  * Refresh 1001-dont_run_ldconfig.patch
+  * Drop 1002-reproducible-build.patch, obsolete now
+  * d/rules: Fix the include of buildtools.mk
+  * d/watch: Update pgpsigurlmangle for asc files
+  * d/watch: Remove uversionmangle & dversionmangle, not needed
+
+ -- Dennis Braun <d_braun@kabelmail.de>  Wed, 13 Jan 2021 22:42:05 +0100
+
+serd (0.30.6-1) unstable; urgency=medium
+
+  * New upstream version 0.30.6
+  * Update patchset
+    + Make the build reproducible. Thanks to Chris Lamb! (Closes: #968278)
+
+ -- Dennis Braun <d_braun@kabelmail.de>  Tue, 29 Sep 2020 22:58:43 +0200
+
+serd (0.30.4-1) unstable; urgency=medium
+
+  * New upstream version 0.30.4
+  * Bump S-V to 4.5.0
+  * Bump dh-compat to 13
+  * Add me as uploader
+  * Fix bad-whatis-entry in serd.3
+  * Mark libserd-doc as Multi-Arch: foreign
+  * Make libserd-doc depend on libjs-jquery
+  * Link the jquery.js from libjs-jquery
+  * Add libserd-dev as B-D to the symbols file
+  * Update d/copyright year
+  * d/watch: Use https protocol
+  * Remove obsolete DEB_LDFLAGS_MAINT_APPEND export
+  * Add d/upstream/signing-key.asc
+  * Add d/upstream/metadata
+
+ -- Dennis Braun <d_braun@kabelmail.de>  Sat, 13 Jun 2020 02:29:30 +0200
+
+serd (0.30.2-1) unstable; urgency=medium
+
+  * Team upload
+
+  [ Ondřej Nový ]
+  * d/copyright: Use https protocol in Format field
+  * d/control: Set Vcs-* to salsa.debian.org
+
+  [ Felipe Sateler ]
+  * Change maintainer address to debian-multimedia@lists.debian.org
+
+  [ Ondřej Nový ]
+  * Use debhelper-compat instead of debian/compat
+
+  [ Olivier Humbert ]
+  * d/control: http -> https
+  * d/copyright: http -> https
+
+  [ Helmut Grohne ]
+  * Fix FTCBFS: (Closes: #913422)
+    + Build-Depends request build architecture python.
+    + Tell waf what we build for.
+
+  [ Sebastian Ramacher ]
+  * New upstream release
+  * debian/rules:
+    - Remove get-orig-source
+    - Use dpkg's architecture.mk
+  * debian/: Use python3 to run waf (Closes: #943204)
+  * debian/libserd0-0.symbols: Add new symbol
+  * debian/patches: Refresh patches
+  * debian/control:
+    - Set RRR: no
+    - Bump debhelper compat to 12
+    - Bump Standards-Version
+
+ -- Sebastian Ramacher <sramacher@debian.org>  Sun, 08 Dec 2019 21:11:24 +0100
+
+serd (0.28.0~dfsg0-1) unstable; urgency=medium
+
+  * New upstream version 0.28.0~dfsg0
+  * Patch refreshed.
+  * Bump Standards.
+  * Fix dh version.
+  * Update symbols file.
+
+ -- Jaromír Mikeš <mira.mikes@seznam.cz>  Mon, 24 Jul 2017 08:03:53 +0200
+
+serd (0.26.0~dfsg0-1) unstable; urgency=medium
+
+  * New upstream version 0.26.0~dfsg0
+  * Set dh/compat 10.
+  * Sign tags.
+  * Update copyright file.
+  * Avoid useless linking.
+
+ -- Jaromír Mikeš <mira.mikes@seznam.cz>  Sun, 15 Jan 2017 21:10:18 +0100
+
+serd (0.24.0~dfsg0-1) unstable; urgency=medium
+
+  * New upstream version 0.24.0~dfsg0
+  * Patches refreshed.
+  * Bump Standards.
+  * Fix VCS fields.
+  * Fix some hardening.
+  * Update symbols file.
+  * Drop dbg package in favour of dbgsym.
+  * Update copyright file.
+  * Doxy patch dropped - not needed.
+
+ -- Jaromír Mikeš <mira.mikes@seznam.cz>  Thu, 22 Sep 2016 19:31:18 +0200
+
+serd (0.22.0~dfsg0-2) unstable; urgency=medium
+
+  * Patches forwarded.
+
+ -- Jaromír Mikeš <mira.mikes@seznam.cz>  Tue, 13 Oct 2015 18:50:01 +0200
+
+serd (0.22.0~dfsg0-1) unstable; urgency=medium
+
+  [ IOhannes m zmölnig ]
+  * Patched waf to find generated docs.
+  * Remove lock file in 'clean' target.
+
+  [ Jaromír Mikeš ]
+  * Update symbols file.
+  * Enable parallel build.
+
+ -- Jaromír Mikeš <mira.mikes@seznam.cz>  Mon, 12 Oct 2015 21:20:13 +0200
+
+serd (0.20.0~dfsg1-1) unstable; urgency=medium
+
+  [ Jaromír Mikeš ]
+  * New upstream release.
+  * Added myself as uploader
+  * Tuned get-orig-source.
+  * Remove --debug from configure to cppflags be passed.
+  * Bump Standards.
+
+  [ Alessio Treglia ]
+  * Refresh patches.
+
+ -- Alessio Treglia <alessio@debian.org>  Fri, 15 Aug 2014 15:59:51 +0100
+
+serd (0.18.2~dfsg0-2) unstable; urgency=low
+
+  * Upload to unstable.
+  * Fix Vcs URLs.
+  * Bump Standards.
+
+ -- Alessio Treglia <alessio@debian.org>  Tue, 07 May 2013 09:54:54 +0200
+
+serd (0.18.2~dfsg0-1) experimental; urgency=low
+
+  * New upstream release.
+  * Refresh patches.
+  * Fix debian/libserd-doc.install.
+
+ -- Alessio Treglia <alessio@debian.org>  Sat, 29 Dec 2012 15:53:15 +0000
+
+serd (0.18.0~dfsg0-1) experimental; urgency=low
+
+  * New upstream release.
+  * Refresh patches.
+  * Update symbols.
+  * Implement a mechanism to automatically repack the tarball.
+  * Install NEWS as upstream changelog.
+
+ -- Alessio Treglia <alessio@debian.org>  Sun, 02 Sep 2012 17:18:54 +0200
+
+serd (0.14.0~dfsg0-2) unstable; urgency=low
+
+  * Add patch to prevent FTBFS on kfreebsd.
+  * Update debian/copyright.
+
+ -- Alessio Treglia <alessio@debian.org>  Thu, 19 Apr 2012 13:31:01 +0200
+
+serd (0.14.0~dfsg0-1) unstable; urgency=low
+
+  * New upstream release.
+  * Refresh patches.
+  * Refresh symbols file.
+  * Bump debhelper requirement to 9.
+  * Put in serd-dbg only symbols from libserd-0-0.
+  * Set 'xz' as upstream tarball compression format.
+  * Update debian/copyright's format.
+  * debian/watch: Mangle dfsg suffix.
+  * Bump Standards.
+
+ -- Alessio Treglia <alessio@debian.org>  Thu, 19 Apr 2012 11:48:16 +0200
+
+serd (0.5.0+dfsg0-2) unstable; urgency=low
+
+  * Build with MultiArch.
+
+ -- Alessio Treglia <alessio@debian.org>  Tue, 24 Jan 2012 09:36:42 +0100
+
+serd (0.5.0+dfsg0-1) unstable; urgency=low
+
+  * Repack upstream tarball to get rid of waf blob (Closes: #654501).
+  * Adjust the clean target to properly clean the sources tree.
+
+ -- Alessio Treglia <alessio@debian.org>  Tue, 10 Jan 2012 01:23:34 +0100
+
+serd (0.5.0-1) unstable; urgency=low
+
+  * New upstream release:
+    - Fix pretty printing of successive blank descriptions, i.e. "] , ["
+    - Avoid writing illegal Turtle names as a result of URI qualifying
+    - Gracefully handle NULL reader sinks
+    - Add serd_strerror
+    - Add serd_env_set_prefix_from_strings for convenience
+    - Fix erroneously equal SERD_ERR_BAD_SYNTAX and SERD_ERR_BAD_ARG
+    - Add ability to build static library
+  * Update symbols file.
+
+ -- Alessio Treglia <alessio@debian.org>  Sun, 02 Oct 2011 10:35:47 +0200
+
+serd (0.4.2-2) unstable; urgency=low
+
+  * Sources are now taken from download.drobilla.net.
+  * Add doxygen,graphviz to Build-Depends-Indep.
+  * Add documentation package.
+  * Add libserd-doc to libserd-dev's Suggests field.
+  * Enable strict flag.
+
+ -- Alessio Treglia <alessio@debian.org>  Fri, 27 May 2011 15:57:32 +0200
+
+serd (0.4.2-1) unstable; urgency=low
+
+  * New upstream bugfix release:
+    - Fix compilation issues on some systems.
+    - Fix build system Python 3 compatibility.
+
+ -- Alessio Treglia <alessio@debian.org>  Thu, 26 May 2011 09:57:25 +0200
+
+serd (0.4.0-1) unstable; urgency=low
+
+  * First upstream stable release.
+  * Delete 0001-write_text_escape_buf_overflow.patch, applied upstream.
+  * Refresh patches.
+  * Update symbols file.
+  * debian/copyright: Update format spec.
+  * Add watch file.
+  * Drop unneeded get-svn-source.sh.
+
+ -- Alessio Treglia <alessio@debian.org>  Thu, 26 May 2011 00:07:31 +0200
+
+serd (0~svn155-1) unstable; urgency=low
+
+  * New upstream release:
+    - Re-licensed under ISC license terms, update debian/copyright.
+  * Move from libserd0 to libserd-0-0.
+  * Add patch to fix snprintf overflow (Closes: #624775).
+  * Refresh 1001-dont_run_ldconfig.patch.
+  * debian/rules: Explicitly pass --mandir to configure.
+  * debian/get-svn-source.sh
+    - Abort on errors.
+    - Append upstream versioning to the directory's name.
+  * Bump Standards.
+
+ -- Alessio Treglia <alessio@debian.org>  Tue, 03 May 2011 13:57:33 +0200
+
+serd (0~svn128-1) unstable; urgency=low
+
+  * Initial release. (Closes: #619429)
+
+ -- Alessio Treglia <alessio@debian.org>  Wed, 23 Mar 2011 20:45:10 +0100
