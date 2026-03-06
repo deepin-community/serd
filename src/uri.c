@@ -1,24 +1,13 @@
-/*
-  Copyright 2011-2020 David Robillard <d@drobilla.net>
-
-  Permission to use, copy, modify, and/or distribute this software for any
-  purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
-
-  THIS SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-*/
+// Copyright 2011-2023 David Robillard <d@drobilla.net>
+// SPDX-License-Identifier: ISC
 
 #include "string_utils.h"
 #include "uri_utils.h"
+#include "warnings.h"
 
-#include "serd/serd.h"
+#include <serd/serd.h>
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -26,12 +15,14 @@
 #include <string.h>
 
 const uint8_t*
-serd_uri_to_path(const uint8_t* uri)
+serd_uri_to_path(const uint8_t* const uri)
 {
+  assert(uri);
+
   const uint8_t* path = uri;
   if (!is_windows_path(uri) && serd_uri_string_has_scheme(uri)) {
-    if (strncmp((const char*)uri, "file:", 5)) {
-      fprintf(stderr, "Non-file URI `%s'\n", uri);
+    if (!!strncmp((const char*)uri, "file:", 5)) {
+      fprintf(stderr, "Non-file URI '%s'\n", uri);
       return NULL;
     }
 
@@ -40,7 +31,7 @@ serd_uri_to_path(const uint8_t* uri)
     } else if (!strncmp((const char*)uri, "file://", 7)) {
       path = uri + 7;
     } else {
-      fprintf(stderr, "Invalid file URI `%s'\n", uri);
+      fprintf(stderr, "Invalid file URI '%s'\n", uri);
       return NULL;
     }
 
@@ -52,8 +43,10 @@ serd_uri_to_path(const uint8_t* uri)
 }
 
 uint8_t*
-serd_file_uri_parse(const uint8_t* uri, uint8_t** hostname)
+serd_file_uri_parse(const uint8_t* const uri, uint8_t** const hostname)
 {
+  assert(uri);
+
   const uint8_t* path = uri;
   if (hostname) {
     *hostname = NULL;
@@ -85,8 +78,9 @@ serd_file_uri_parse(const uint8_t* uri, uint8_t** hostname)
         serd_chunk_sink("%", 1, &chunk);
         ++s;
       } else if (is_hexdig(*(s + 1)) && is_hexdig(*(s + 2))) {
-        const uint8_t code[3] = {*(s + 1), *(s + 2), 0};
-        const uint8_t c       = (uint8_t)strtoul((const char*)code, NULL, 16);
+        const uint8_t hi = hex_digit_value(s[1]);
+        const uint8_t lo = hex_digit_value(s[2]);
+        const char    c  = (char)((hi << 4U) | lo);
         serd_chunk_sink(&c, 1, &chunk);
         s += 2;
       } else {
@@ -122,8 +116,11 @@ serd_uri_string_has_scheme(const uint8_t* utf8)
 }
 
 SerdStatus
-serd_uri_parse(const uint8_t* utf8, SerdURI* out)
+serd_uri_parse(const uint8_t* const utf8, SerdURI* const out)
 {
+  assert(utf8);
+  assert(out);
+
   *out = SERD_URI_NULL;
 
   const uint8_t* ptr = utf8;
@@ -245,71 +242,35 @@ end:
    @return A pointer to the new start of `path`
 */
 static const uint8_t*
-remove_dot_segments(const uint8_t* path, size_t len, size_t* up)
+remove_dot_segments(const uint8_t* const path,
+                    const size_t         len,
+                    size_t* const        up)
 {
-  const uint8_t*       begin = path;
-  const uint8_t* const end   = path + len;
-
   *up = 0;
-  while (begin < end) {
-    switch (begin[0]) {
-    case '.':
-      switch (begin[1]) {
-      case '/':
-        begin += 2; // Chop leading "./"
-        break;
-      case '.':
-        switch (begin[2]) {
-        case '\0':
-          ++*up;
-          begin += 2; // Chop input ".."
-          break;
-        case '/':
-          ++*up;
-          begin += 3; // Chop leading "../"
-          break;
-        default:
-          return begin;
-        }
-        break;
-      case '\0':
-        return ++begin; // Chop input "."
-      default:
-        return begin;
-      }
-      break;
 
-    case '/':
-      switch (begin[1]) {
-      case '.':
-        switch (begin[2]) {
-        case '/':
-          begin += 2; // Leading "/./" => "/"
-          break;
-        case '.':
-          switch (begin[3]) {
-          case '/':
-            ++*up;
-            begin += 3; // Leading "/../" => "/"
-          }
-          break;
-        default:
-          return begin;
-        }
-      }
-      return begin;
-
-    default:
-      return begin; // Finished chopping dot components
+  for (size_t i = 0; i < len;) {
+    const char* const p = (char*)path + i;
+    if (!strcmp(p, ".")) {
+      ++i; // Chop input "."
+    } else if (!strcmp(p, "..")) {
+      ++*up;
+      i += 2; // Chop input ".."
+    } else if (!strncmp(p, "./", 2) || !strncmp(p, "/./", 3)) {
+      i += 2; // Chop leading "./", or replace leading "/./" with "/"
+    } else if (!strncmp(p, "../", 3) || !strncmp(p, "/../", 4)) {
+      ++*up;
+      i += 3; // Chop leading "../", or replace "/../" with "/"
+    } else {
+      return (uint8_t*)p;
     }
   }
 
-  return begin;
+  return path + len;
 }
 
 /// Merge `base` and `path` in-place
 static void
-merge(SerdChunk* base, SerdChunk* path)
+merge(SerdChunk* const base, SerdChunk* const path)
 {
   size_t         up    = 0;
   const uint8_t* begin = remove_dot_segments(path->buf, path->len, &up);
@@ -336,8 +297,14 @@ merge(SerdChunk* base, SerdChunk* path)
 
 /// See http://tools.ietf.org/html/rfc3986#section-5.2.2
 void
-serd_uri_resolve(const SerdURI* r, const SerdURI* base, SerdURI* t)
+serd_uri_resolve(const SerdURI* const r,
+                 const SerdURI* const base,
+                 SerdURI* const       t)
 {
+  assert(r);
+  assert(base);
+  assert(t);
+
   if (!base->scheme.len) {
     *t = *r; // Don't resolve against non-absolute URIs
     return;
@@ -377,8 +344,13 @@ serd_uri_resolve(const SerdURI* r, const SerdURI* base, SerdURI* t)
 
 /** Write the path of `uri` starting at index `i` */
 static size_t
-write_path_tail(SerdSink sink, void* stream, const SerdURI* uri, size_t i)
+write_path_tail(const SerdSink       sink,
+                void* const          stream,
+                const SerdURI* const uri,
+                const size_t         i)
 {
+  SERD_DISABLE_NULL_WARNINGS
+
   size_t len = 0;
   if (i < uri->path_base.len) {
     len += sink(uri->path_base.buf + i, uri->path_base.len - i, stream);
@@ -394,14 +366,16 @@ write_path_tail(SerdSink sink, void* stream, const SerdURI* uri, size_t i)
   }
 
   return len;
+
+  SERD_RESTORE_WARNINGS
 }
 
 /** Write the path of `uri` relative to the path of `base`. */
 static size_t
-write_rel_path(SerdSink       sink,
-               void*          stream,
-               const SerdURI* uri,
-               const SerdURI* base)
+write_rel_path(const SerdSink       sink,
+               void* const          stream,
+               const SerdURI* const uri,
+               const SerdURI* const base)
 {
   const size_t path_len = uri_path_len(uri);
   const size_t base_len = uri_path_len(base);
@@ -434,16 +408,12 @@ write_rel_path(SerdSink       sink,
     len += sink("../", 3, stream);
   }
 
-  if (last_shared_sep == 0 && up == 0) {
-    len += sink("/", 1, stream);
-  }
-
   // Write suffix
   return len + write_path_tail(sink, stream, uri, last_shared_sep + 1);
 }
 
 static uint8_t
-serd_uri_path_starts_without_slash(const SerdURI* uri)
+serd_uri_path_starts_without_slash(const SerdURI* const uri)
 {
   return ((uri->path_base.len || uri->path.len) &&
           ((!uri->path_base.len || uri->path_base.buf[0] != '/') &&
@@ -452,12 +422,15 @@ serd_uri_path_starts_without_slash(const SerdURI* uri)
 
 /// See http://tools.ietf.org/html/rfc3986#section-5.3
 size_t
-serd_uri_serialise_relative(const SerdURI* uri,
-                            const SerdURI* base,
-                            const SerdURI* root,
-                            SerdSink       sink,
-                            void*          stream)
+serd_uri_serialise_relative(const SerdURI* const uri,
+                            const SerdURI* const base,
+                            const SerdURI* const root,
+                            const SerdSink       sink,
+                            void* const          stream)
 {
+  assert(uri);
+  assert(sink);
+
   size_t     len = 0;
   const bool relative =
     root ? uri_is_under(uri, root) : uri_is_related(uri, base);
@@ -466,7 +439,9 @@ serd_uri_serialise_relative(const SerdURI* uri,
     len = write_rel_path(sink, stream, uri, base);
   }
 
-  if (!relative || (!len && base->query.buf)) {
+  SERD_DISABLE_NULL_WARNINGS
+
+  if (!relative || (!len && base && base->query.buf)) {
     if (uri->scheme.buf) {
       len += sink(uri->scheme.buf, uri->scheme.len, stream);
       len += sink(":", 1, stream);
@@ -474,8 +449,12 @@ serd_uri_serialise_relative(const SerdURI* uri,
     if (uri->authority.buf) {
       len += sink("//", 2, stream);
       len += sink(uri->authority.buf, uri->authority.len, stream);
-      if (uri->authority.len > 0 &&
-          uri->authority.buf[uri->authority.len - 1] != '/' &&
+
+      const bool authority_ends_with_slash =
+        (uri->authority.len > 0 &&
+         uri->authority.buf[uri->authority.len - 1] == '/');
+
+      if (!authority_ends_with_slash &&
           serd_uri_path_starts_without_slash(uri)) {
         // Special case: ensure path begins with a slash
         // https://tools.ietf.org/html/rfc3986#section-3.2
@@ -491,16 +470,22 @@ serd_uri_serialise_relative(const SerdURI* uri,
   }
 
   if (uri->fragment.buf) {
-    // Note uri->fragment.buf includes the leading `#'
+    // Note uri->fragment.buf includes the leading '#'
     len += sink(uri->fragment.buf, uri->fragment.len, stream);
   }
+
+  SERD_RESTORE_WARNINGS
 
   return len;
 }
 
 /// See http://tools.ietf.org/html/rfc3986#section-5.3
 size_t
-serd_uri_serialise(const SerdURI* uri, SerdSink sink, void* stream)
+serd_uri_serialise(const SerdURI* const uri,
+                   const SerdSink       sink,
+                   void* const          stream)
 {
+  assert(uri);
+  assert(sink);
   return serd_uri_serialise_relative(uri, NULL, NULL, sink, stream);
 }

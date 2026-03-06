@@ -1,3 +1,69 @@
+serd (0.32.4-1) unstable; urgency=medium
+
+  * New upstream version 0.32.4
+  * Change B-D and Depends for the dev package from pkg-config to pkgconf
+  * Bump Standards-Version to 4.7.0
+  * Bump d/copyright years
+
+ -- Dennis Braun <snd@debian.org>  Sun, 09 Feb 2025 11:32:57 +0100
+
+serd (0.32.2-1) unstable; urgency=medium
+
+  * New upstream version 0.32.2
+  * Update d/copyright years and files
+  * Change my email address
+
+ -- Dennis Braun <snd@debian.org>  Wed, 24 Jan 2024 17:38:42 +0100
+
+serd (0.32.0-2) unstable; urgency=medium
+
+  * Team upload
+  * debian/rules: Really fix build of documentation
+
+ -- Sebastian Ramacher <sramacher@debian.org>  Sat, 11 Nov 2023 00:20:54 +0100
+
+serd (0.32.0-1) unstable; urgency=medium
+
+  * Team upload
+  * New upstream version 0.32.0
+  * debian/control:
+    - Update Homepage
+    - Bump Standards-Version
+    - Add sphinxygen to Build-Depends
+  * debian/libserd-0-0.symbols: Add new symbol
+  * debian/rules: Fix build of documentation
+
+ -- Sebastian Ramacher <sramacher@debian.org>  Fri, 10 Nov 2023 23:53:29 +0100
+
+serd (0.30.16-1) unstable; urgency=medium
+
+  * New upstream version 0.30.16
+  * Drop spelling error patch applied by upstream
+
+ -- Dennis Braun <d_braun@kabelmail.de>  Mon, 12 Sep 2022 23:10:04 +0200
+
+serd (0.30.14-1) unstable; urgency=medium
+
+  * New upstream version 0.30.14
+  * Build with meson
+  * Drop obsolete ldconfig patch
+  * Fix doc installation
+  * Refresh lintian-overrides
+  * d/copyright: Drop waf entry and BSD license
+  * Remove obsolete d/clean
+
+ -- Dennis Braun <d_braun@kabelmail.de>  Mon, 25 Jul 2022 14:55:30 +0200
+
+serd (0.30.12-1) unstable; urgency=medium
+
+  * New upstream version 0.30.12
+  * Bump Standards Version to 4.6.1
+  * d/copyright: Bump year and add myself
+  * Fix spelling error in man page occured -> occurred
+  * Add salsa ci config
+
+ -- Dennis Braun <d_braun@kabelmail.de>  Mon, 30 May 2022 23:18:52 +0200
+
 serd (0.30.10-2) unstable; urgency=medium
 
   * Move python3-sphinx to Build-Depends-Indep to fix Cross-Build

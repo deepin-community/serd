@@ -1,21 +1,8 @@
-/*
-  Copyright 2011-2020 David Robillard <d@drobilla.net>
+// Copyright 2011-2023 David Robillard <d@drobilla.net>
+// SPDX-License-Identifier: ISC
 
-  Permission to use, copy, modify, and/or distribute this software for any
-  purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
-
-  THIS SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-*/
-
-#ifndef SERD_STACK_H
-#define SERD_STACK_H
+#ifndef SERD_SRC_STACK_H
+#define SERD_SRC_STACK_H
 
 #include <assert.h>
 #include <stdbool.h>
@@ -37,7 +24,7 @@ typedef struct {
 #define SERD_STACK_BOTTOM sizeof(void*)
 
 static inline SerdStack
-serd_stack_new(size_t size)
+serd_stack_new(const size_t size)
 {
   SerdStack stack;
   stack.buf      = (uint8_t*)calloc(size, 1);
@@ -47,13 +34,13 @@ serd_stack_new(size_t size)
 }
 
 static inline bool
-serd_stack_is_empty(SerdStack* stack)
+serd_stack_is_empty(const SerdStack* const stack)
 {
   return stack->size <= SERD_STACK_BOTTOM;
 }
 
 static inline void
-serd_stack_free(SerdStack* stack)
+serd_stack_free(SerdStack* const stack)
 {
   free(stack->buf);
   stack->buf      = NULL;
@@ -62,7 +49,7 @@ serd_stack_free(SerdStack* stack)
 }
 
 static inline void*
-serd_stack_push(SerdStack* stack, size_t n_bytes)
+serd_stack_push(SerdStack* const stack, const size_t n_bytes)
 {
   const size_t new_size = stack->size + n_bytes;
   if (stack->buf_size < new_size) {
@@ -77,23 +64,23 @@ serd_stack_push(SerdStack* stack, size_t n_bytes)
 }
 
 static inline void
-serd_stack_pop(SerdStack* stack, size_t n_bytes)
+serd_stack_pop(SerdStack* const stack, const size_t n_bytes)
 {
   assert(stack->size >= n_bytes);
   stack->size -= n_bytes;
 }
 
 static inline void*
-serd_stack_push_aligned(SerdStack* stack, size_t n_bytes, size_t align)
+serd_stack_push_aligned(SerdStack* const stack,
+                        const size_t     n_bytes,
+                        const size_t     align)
 {
   // Push one byte to ensure space for a pad count
   serd_stack_push(stack, 1);
 
   // Push padding if necessary
   const size_t pad = align - stack->size % align;
-  if (pad > 0) {
-    serd_stack_push(stack, pad);
-  }
+  serd_stack_push(stack, pad);
 
   // Set top of stack to pad count so we can properly pop later
   assert(pad < UINT8_MAX);
@@ -104,7 +91,7 @@ serd_stack_push_aligned(SerdStack* stack, size_t n_bytes, size_t align)
 }
 
 static inline void
-serd_stack_pop_aligned(SerdStack* stack, size_t n_bytes)
+serd_stack_pop_aligned(SerdStack* const stack, const size_t n_bytes)
 {
   // Pop requested space down to aligned location
   serd_stack_pop(stack, n_bytes);
@@ -113,7 +100,7 @@ serd_stack_pop_aligned(SerdStack* stack, size_t n_bytes)
   const uint8_t pad = stack->buf[stack->size - 1];
 
   // Pop padding and pad count
-  serd_stack_pop(stack, pad + 1u);
+  serd_stack_pop(stack, pad + 1U);
 }
 
-#endif // SERD_STACK_H
+#endif // SERD_SRC_STACK_H

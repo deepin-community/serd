@@ -1,21 +1,14 @@
-/*
-  Copyright 2019-2020 David Robillard <d@drobilla.net>
+// Copyright 2019-2023 David Robillard <d@drobilla.net>
+// SPDX-License-Identifier: ISC
 
-  Permission to use, copy, modify, and/or distribute this software for any
-  purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
+#ifndef SERD_SRC_ATTRIBUTES_H
+#define SERD_SRC_ATTRIBUTES_H
 
-  THIS SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-*/
-
-#ifndef SERD_ATTRIBUTES_H
-#define SERD_ATTRIBUTES_H
+#if defined(__GNUC__)
+#  define SERD_LOG_FUNC(fmt, arg1) __attribute__((format(printf, fmt, arg1)))
+#else
+#  define SERD_LOG_FUNC(fmt, arg1)
+#endif
 
 #ifdef __GNUC__
 #  define SERD_MALLOC_FUNC __attribute__((malloc))
@@ -23,4 +16,10 @@
 #  define SERD_MALLOC_FUNC
 #endif
 
-#endif // SERD_ATTRIBUTES_H
+#ifdef __GNUC__
+#  define SERD_NODISCARD __attribute__((warn_unused_result))
+#else
+#  define SERD_NODISCARD
+#endif
+
+#endif // SERD_SRC_ATTRIBUTES_H

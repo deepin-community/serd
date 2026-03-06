@@ -1,23 +1,10 @@
-/*
-  Copyright 2011-2020 David Robillard <d@drobilla.net>
+// Copyright 2011-2023 David Robillard <d@drobilla.net>
+// SPDX-License-Identifier: ISC
 
-  Permission to use, copy, modify, and/or distribute this software for any
-  purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
+#ifndef SERD_SRC_BYTE_SOURCE_H
+#define SERD_SRC_BYTE_SOURCE_H
 
-  THIS SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-*/
-
-#ifndef SERD_BYTE_SOURCE_H
-#define SERD_BYTE_SOURCE_H
-
-#include "serd/serd.h"
+#include <serd/serd.h>
 
 #include <assert.h>
 #include <stdbool.h>
@@ -71,23 +58,22 @@ SerdStatus
 serd_byte_source_page(SerdByteSource* source);
 
 static inline SERD_PURE_FUNC uint8_t
-serd_byte_source_peek(SerdByteSource* source)
+serd_byte_source_peek(SerdByteSource* const source)
 {
   assert(source->prepared);
   return source->read_buf[source->read_head];
 }
 
 static inline SerdStatus
-serd_byte_source_advance(SerdByteSource* source)
+serd_byte_source_advance(SerdByteSource* const source)
 {
   SerdStatus st = SERD_SUCCESS;
 
-  switch (serd_byte_source_peek(source)) {
-  case '\n':
+  const uint8_t c = serd_byte_source_peek(source);
+  if (c == '\n') {
     ++source->cur.line;
     source->cur.col = 0;
-    break;
-  default:
+  } else if (c) {
     ++source->cur.col;
   }
 
@@ -97,7 +83,7 @@ serd_byte_source_advance(SerdByteSource* source)
     if (source->page_size > 1) {
       if (++source->read_head == source->page_size) {
         st = serd_byte_source_page(source);
-      } else if (source->read_head == source->buf_size) {
+      } else if (source->read_head >= source->buf_size) {
         source->eof = true;
       }
     } else {
@@ -117,4 +103,4 @@ serd_byte_source_advance(SerdByteSource* source)
   return (was_eof && source->eof) ? SERD_FAILURE : st;
 }
 
-#endif // SERD_BYTE_SOURCE_H
+#endif // SERD_SRC_BYTE_SOURCE_H

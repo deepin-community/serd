@@ -1,25 +1,16 @@
-/*
-  Copyright 2011-2020 David Robillard <d@drobilla.net>
-
-  Permission to use, copy, modify, and/or distribute this software for any
-  purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
-
-  THIS SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-*/
+// Copyright 2011-2024 David Robillard <d@drobilla.net>
+// SPDX-License-Identifier: ISC
 
 #undef NDEBUG
 
-#include "serd/serd.h"
+#include <serd/serd.h>
+
+#ifdef _WIN32
+#  include <windows.h>
+#endif
 
 #include <assert.h>
-#include <stdbool.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,19 +19,49 @@
 #define USTR(s) ((const uint8_t*)(s))
 
 typedef struct {
-  int             n_statements;
+  size_t n_written;
+  size_t error_offset;
+} ErrorContext;
+
+typedef struct {
+  int             n_statement;
   const SerdNode* graph;
 } ReaderTest;
 
+static const char* const doc_string =
+  "@base <http://drobilla.net/> .\n"
+  "@prefix eg: <http://example.org/> .\n"
+  "eg:g {\n"
+  "<http://example.com/s> eg:p \"l\\n\\\"it\" ,\n"
+  "  \"\"\"long\"\"\" ,\n"
+  "  \"lang\"@en ;\n"
+  "  eg:p <http://example.com/o> .\n"
+  "}\n"
+  "@prefix other: <http://example.org/other> .\n"
+  "@base <http://drobilla.net/> .\n"
+  "eg:s\n"
+  "  <http://example.org/p> [\n"
+  "    eg:p 3.0 ,\n"
+  "      4 ,\n"
+  "      \"lit\" ,\n"
+  "      _:n42 ,\n"
+  "      \"t\"^^eg:T\n"
+  "  ] ;\n"
+  "  eg:p () ;\n"
+  "  eg:p\\!q (\"s\" 1 2.0 \"l\"@en eg:o) .\n"
+  "[] eg:p eg:o .\n"
+  "[ eg:p eg:o ] eg:q eg:r .\n"
+  "( eg:o ) eg:t eg:u .\n";
+
 static SerdStatus
-test_sink(void*              handle,
-          SerdStatementFlags flags,
-          const SerdNode*    graph,
-          const SerdNode*    subject,
-          const SerdNode*    predicate,
-          const SerdNode*    object,
-          const SerdNode*    object_datatype,
-          const SerdNode*    object_lang)
+test_statement_sink(void* const              handle,
+                    const SerdStatementFlags flags,
+                    const SerdNode* const    graph,
+                    const SerdNode* const    subject,
+                    const SerdNode* const    predicate,
+                    const SerdNode* const    object,
+                    const SerdNode* const    object_datatype,
+                    const SerdNode* const    object_lang)
 {
   (void)flags;
   (void)subject;
@@ -50,124 +71,86 @@ test_sink(void*              handle,
   (void)object_lang;
 
   ReaderTest* rt = (ReaderTest*)handle;
-  ++rt->n_statements;
+  ++rt->n_statement;
   rt->graph = graph;
   return SERD_SUCCESS;
 }
 
-/// Returns EOF after a statement, then succeeds again (like a socket)
 static size_t
-eof_test_read(void* buf, size_t size, size_t nmemb, void* stream)
+faulty_sink(const void* const buf, const size_t len, void* const stream)
 {
-  assert(nmemb == 1);
+  (void)buf;
+  (void)len;
 
-  static const char* const string = "_:s1 <http://example.org/p> _:o1 .\n"
-                                    "_:s2 <http://example.org/p> _:o2 .\n";
-
-  size_t* count = (size_t*)stream;
-  if (*count == 34 || *count == 35 || *count + nmemb >= strlen(string)) {
-    ++*count;
-    return 0;
+  ErrorContext* const ctx           = (ErrorContext*)stream;
+  const size_t        new_n_written = ctx->n_written + len;
+  if (new_n_written >= ctx->error_offset) {
+    errno = EINVAL;
+    return 0U;
   }
 
-  memcpy((char*)buf, string + *count, size * nmemb);
-  *count += nmemb;
-  return nmemb;
+  ctx->n_written += len;
+  errno = 0;
+  return len;
 }
 
-static int
-eof_test_error(void* stream)
+static SerdStatus
+quiet_error_sink(void* const handle, const SerdError* const e)
 {
-  (void)stream;
-  return 0;
-}
-
-static void
-test_read_chunks(void)
-{
-  ReaderTest* const rt   = (ReaderTest*)calloc(1, sizeof(ReaderTest));
-  FILE* const       f    = tmpfile();
-  static const char null = 0;
-  SerdReader* const reader =
-    serd_reader_new(SERD_TURTLE, rt, free, NULL, NULL, test_sink, NULL);
-
-  assert(reader);
-  assert(serd_reader_get_handle(reader) == rt);
-  assert(f);
-
-  SerdStatus st = serd_reader_start_stream(reader, f, NULL, false);
-  assert(st == SERD_SUCCESS);
-
-  // Write two statement separated by null characters
-  fprintf(f, "@prefix eg: <http://example.org/> .\n");
-  fprintf(f, "eg:s eg:p eg:o1 .\n");
-  fwrite(&null, sizeof(null), 1, f);
-  fprintf(f, "eg:s eg:p eg:o2 .\n");
-  fwrite(&null, sizeof(null), 1, f);
-  fseek(f, 0, SEEK_SET);
-
-  // Read prefix
-  st = serd_reader_read_chunk(reader);
-  assert(st == SERD_SUCCESS);
-  assert(rt->n_statements == 0);
-
-  // Read first statement
-  st = serd_reader_read_chunk(reader);
-  assert(st == SERD_SUCCESS);
-  assert(rt->n_statements == 1);
-
-  // Read terminator
-  st = serd_reader_read_chunk(reader);
-  assert(st == SERD_FAILURE);
-  assert(rt->n_statements == 1);
-
-  // Read second statement (after null terminator)
-  st = serd_reader_read_chunk(reader);
-  assert(st == SERD_SUCCESS);
-  assert(rt->n_statements == 2);
-
-  // Read terminator
-  st = serd_reader_read_chunk(reader);
-  assert(st == SERD_FAILURE);
-  assert(rt->n_statements == 2);
-
-  // EOF
-  st = serd_reader_read_chunk(reader);
-  assert(st == SERD_FAILURE);
-  assert(rt->n_statements == 2);
-
-  serd_reader_free(reader);
-  fclose(f);
+  (void)handle;
+  (void)e;
+  return SERD_SUCCESS;
 }
 
 static void
-test_read_string(void)
+test_write_errors(void)
 {
-  ReaderTest* rt = (ReaderTest*)calloc(1, sizeof(ReaderTest));
-  SerdReader* reader =
-    serd_reader_new(SERD_TURTLE, rt, free, NULL, NULL, test_sink, NULL);
+  ErrorContext    ctx   = {0U, 0U};
+  const SerdStyle style = (SerdStyle)(SERD_STYLE_STRICT | SERD_STYLE_CURIED);
 
-  assert(reader);
-  assert(serd_reader_get_handle(reader) == rt);
+  const size_t max_offsets[] = {0, 462, 1911, 2003, 462};
 
-  // Test reading a string that ends exactly at the end of input (no newline)
-  const SerdStatus st = serd_reader_read_string(
-    reader,
-    USTR("<http://example.org/s> <http://example.org/p> "
-         "<http://example.org/o> ."));
+  // Test errors at different offsets to hit different code paths
+  for (unsigned s = 1; s <= (unsigned)SERD_TRIG; ++s) {
+    const SerdSyntax syntax = (SerdSyntax)s;
+    for (size_t o = 0; o < max_offsets[s]; ++o) {
+      ctx.n_written    = 0;
+      ctx.error_offset = o;
 
-  assert(!st);
-  assert(rt->n_statements == 1);
+      SerdEnv* const    env = serd_env_new(NULL);
+      SerdWriter* const writer =
+        serd_writer_new(syntax, style, env, NULL, faulty_sink, &ctx);
 
-  serd_reader_free(reader);
+      SerdReader* const reader =
+        serd_reader_new(SERD_TRIG,
+                        writer,
+                        NULL,
+                        (SerdBaseSink)serd_writer_set_base_uri,
+                        (SerdPrefixSink)serd_writer_set_prefix,
+                        (SerdStatementSink)serd_writer_write_statement,
+                        (SerdEndSink)serd_writer_end_anon);
+
+      serd_reader_set_error_sink(reader, quiet_error_sink, NULL);
+      serd_writer_set_error_sink(writer, quiet_error_sink, NULL);
+
+      const SerdStatus st = serd_reader_read_string(reader, USTR(doc_string));
+      assert(st == SERD_ERR_BAD_WRITE);
+
+      serd_reader_free(reader);
+      serd_writer_free(writer);
+      serd_env_free(env);
+    }
+  }
 }
 
 static void
 test_writer(const char* const path)
 {
-  FILE*    fd  = fopen(path, "wb");
-  SerdEnv* env = serd_env_new(NULL);
+  FILE* const fd = fopen(path, "wb");
   assert(fd);
+
+  SerdEnv* const env = serd_env_new(NULL);
+  assert(env);
 
   SerdWriter* writer =
     serd_writer_new(SERD_TURTLE, (SerdStyle)0, env, NULL, serd_file_sink, fd);
@@ -183,8 +166,9 @@ test_writer(const char* const path)
   assert(serd_writer_end_anon(writer, NULL));
   assert(serd_writer_get_env(writer) == env);
 
-  uint8_t  buf[] = {0x80, 0, 0, 0, 0};
-  SerdNode s     = serd_node_from_string(SERD_URI, USTR(""));
+  const uint8_t buf[] = {0x80, 0, 0, 0, 0};
+
+  SerdNode s = serd_node_from_string(SERD_URI, USTR(""));
   SerdNode p = serd_node_from_string(SERD_URI, USTR("http://example.org/pred"));
   SerdNode o = serd_node_from_string(SERD_LITERAL, buf);
 
@@ -259,32 +243,40 @@ test_writer(const char* const path)
   serd_free(out);
 
   // Test writing empty node
-  SerdNode    nothing = serd_node_from_string(SERD_NOTHING, USTR(""));
-  FILE* const empty   = tmpfile();
+  SerdNode nothing = serd_node_from_string(SERD_NOTHING, USTR(""));
 
-  writer = serd_writer_new(
-    SERD_TURTLE, (SerdStyle)0, env, NULL, serd_file_sink, empty);
+  chunk.buf = NULL;
+  chunk.len = 0;
+  writer    = serd_writer_new(
+    SERD_TURTLE, (SerdStyle)0, env, NULL, serd_chunk_sink, &chunk);
 
-  // FIXME: error handling
-  serd_writer_write_statement(writer, 0, NULL, &s, &p, &nothing, NULL, NULL);
+  assert(!serd_writer_write_statement(
+    writer, 0, NULL, &s, &p, &nothing, NULL, NULL));
 
-  assert((size_t)ftell(empty) == strlen("<>\n\t<http://example.org/pred> "));
+  assert(
+    !strncmp((const char*)chunk.buf, "<>\n\t<http://example.org/pred> ", 30));
 
   serd_writer_free(writer);
-  fclose(empty);
+  out = serd_chunk_sink_finish(&chunk);
+
+  assert(!strcmp((const char*)out, "<>\n\t<http://example.org/pred>  .\n"));
+  serd_free(out);
 
   serd_env_free(env);
-  fclose(fd);
+  assert(!fclose(fd));
 }
 
 static void
-test_reader(const char* path)
+test_reader(const char* const path)
 {
-  ReaderTest* rt = (ReaderTest*)calloc(1, sizeof(ReaderTest));
-  SerdReader* reader =
-    serd_reader_new(SERD_TURTLE, rt, free, NULL, NULL, test_sink, NULL);
+  ReaderTest* rt     = (ReaderTest*)calloc(1, sizeof(ReaderTest));
+  SerdReader* reader = serd_reader_new(
+    SERD_TURTLE, rt, free, NULL, NULL, test_statement_sink, NULL);
+
   assert(reader);
   assert(serd_reader_get_handle(reader) == rt);
+
+  assert(serd_reader_read_chunk(reader) == SERD_FAILURE);
 
   SerdNode g = serd_node_from_string(SERD_URI, USTR("http://example.org/"));
   serd_reader_set_default_graph(reader, &g);
@@ -305,45 +297,11 @@ test_reader(const char* path)
 
   const SerdStatus st = serd_reader_read_file(reader, USTR(path));
   assert(!st);
-  assert(rt->n_statements == 13);
+  assert(rt->n_statement == 13);
   assert(rt->graph && rt->graph->buf &&
          !strcmp((const char*)rt->graph->buf, "http://example.org/"));
 
   assert(serd_reader_read_string(reader, USTR("This isn't Turtle at all.")));
-
-  // A read of a big page hits EOF then fails to read chunks immediately
-  {
-    FILE* temp = tmpfile();
-    assert(temp);
-    fprintf(temp, "_:s <http://example.org/p> _:o .\n");
-    fflush(temp);
-    fseek(temp, 0L, SEEK_SET);
-
-    serd_reader_start_stream(reader, temp, NULL, true);
-
-    assert(serd_reader_read_chunk(reader) == SERD_SUCCESS);
-    assert(serd_reader_read_chunk(reader) == SERD_FAILURE);
-    assert(serd_reader_read_chunk(reader) == SERD_FAILURE);
-
-    serd_reader_end_stream(reader);
-    fclose(temp);
-  }
-
-  // A byte-wise reader that hits EOF once then continues (like a socket)
-  {
-    size_t n_reads = 0;
-    serd_reader_start_source_stream(reader,
-                                    (SerdSource)eof_test_read,
-                                    (SerdStreamErrorFunc)eof_test_error,
-                                    &n_reads,
-                                    NULL,
-                                    1);
-
-    assert(serd_reader_read_chunk(reader) == SERD_SUCCESS);
-    assert(serd_reader_read_chunk(reader) == SERD_FAILURE);
-    assert(serd_reader_read_chunk(reader) == SERD_SUCCESS);
-    assert(serd_reader_read_chunk(reader) == SERD_FAILURE);
-  }
 
   serd_reader_free(reader);
 }
@@ -351,13 +309,31 @@ test_reader(const char* path)
 int
 main(void)
 {
-  test_read_chunks();
-  test_read_string();
+#ifdef _WIN32
+  char         tmp[MAX_PATH] = {0};
+  const size_t tmp_len       = (size_t)GetTempPath(sizeof(tmp), tmp);
+#else
+  const char* const env_tmp = getenv("TMPDIR");
+  const char* const tmp     = env_tmp ? env_tmp : "/tmp";
+  const size_t      tmp_len = strlen(tmp);
+#endif
 
-  const char* const path = "serd_test.ttl";
+  const char* const ttl_name     = "serd_test_reader_writer.ttl";
+  const size_t      ttl_name_len = strlen(ttl_name);
+  const size_t      path_len     = tmp_len + 1 + ttl_name_len;
+  char* const       path         = (char*)calloc(path_len + 1, 1);
+
+  memcpy(path, tmp, tmp_len + 1);
+  path[tmp_len] = '/';
+  memcpy(path + tmp_len + 1, ttl_name, ttl_name_len + 1);
+
+  test_write_errors();
+
   test_writer(path);
   test_reader(path);
 
-  printf("Success\n");
+  assert(!remove(path));
+  free(path);
+
   return 0;
 }
