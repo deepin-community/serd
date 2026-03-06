@@ -1,22 +1,9 @@
-/*
-  Copyright 2011-2020 David Robillard <d@drobilla.net>
-
-  Permission to use, copy, modify, and/or distribute this software for any
-  purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
-
-  THIS SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-*/
+// Copyright 2011-2020 David Robillard <d@drobilla.net>
+// SPDX-License-Identifier: ISC
 
 #undef NDEBUG
 
-#include "serd/serd.h"
+#include <serd/serd.h>
 
 #include <assert.h>
 #include <float.h>
@@ -37,7 +24,7 @@
 #endif
 
 static void
-test_strtod(double dbl, double max_delta)
+check_strtod(const double dbl, const double max_delta)
 {
   char buf[1024];
   snprintf(buf, sizeof(buf), "%f", dbl);
@@ -53,17 +40,23 @@ static void
 test_string_to_double(void)
 {
   const double expt_test_nums[] = {
-    2.0E18, -5e19, +8e20, 2e+24, -5e-5, 8e0, 9e-0, 2e+0};
+    2.0E18, -5e19, +8e20, 2e+22, -5e-5, 8e0, 9e-0, 2e+0};
 
-  const char* expt_test_strs[] = {
-    "02e18", "-5e019", "+8e20", "2E+24", "-5E-5", "8E0", "9e-0", " 2e+0"};
+  const char* expt_test_strs[] = {"02e18",
+                                  "-5e019",
+                                  " +8e20",
+                                  "\f2E+22",
+                                  "\n-5E-5",
+                                  "\r8E0",
+                                  "\t9e-0",
+                                  "\v2e+0"};
 
   for (size_t i = 0; i < sizeof(expt_test_nums) / sizeof(double); ++i) {
     const double num   = serd_strtod(expt_test_strs[i], NULL);
     const double delta = fabs(num - expt_test_nums[i]);
     assert(delta <= DBL_EPSILON);
 
-    test_strtod(expt_test_nums[i], DBL_EPSILON);
+    check_strtod(expt_test_nums[i], DBL_EPSILON);
   }
 }
 
@@ -107,18 +100,22 @@ test_double_to_node(void)
 static void
 test_integer_to_node(void)
 {
-  const long int_test_nums[] = {0, -0, -23, 23, -12340, 1000, -1000};
+#define N_TEST_NUMS 7U
 
-  const char* int_test_strs[] = {
+  const long int_test_nums[N_TEST_NUMS] = {0, -0, -23, 23, -12340, 1000, -1000};
+
+  const char* int_test_strs[N_TEST_NUMS] = {
     "0", "0", "-23", "23", "-12340", "1000", "-1000"};
 
-  for (size_t i = 0; i < sizeof(int_test_nums) / sizeof(double); ++i) {
+  for (size_t i = 0; i < N_TEST_NUMS; ++i) {
     SerdNode node = serd_node_new_integer(int_test_nums[i]);
     assert(!strcmp((const char*)node.buf, (const char*)int_test_strs[i]));
     const size_t len = strlen((const char*)node.buf);
     assert(node.n_bytes == len && node.n_chars == len);
     serd_node_free(&node);
   }
+
+#undef N_TEST_NUMS
 }
 
 static void
@@ -130,14 +127,16 @@ test_blob_to_node(void)
       data[i] = (uint8_t)((size + i) % 256);
     }
 
-    SerdNode blob = serd_node_new_blob(data, size, size % 5);
+    SerdNode             blob     = serd_node_new_blob(data, size, size % 5);
+    const uint8_t* const blob_str = blob.buf;
 
+    assert(blob_str);
     assert(blob.n_bytes == blob.n_chars);
-    assert(blob.n_bytes == strlen((const char*)blob.buf));
+    assert(blob.n_bytes == strlen((const char*)blob_str));
 
     size_t   out_size = 0;
     uint8_t* out =
-      (uint8_t*)serd_base64_decode(blob.buf, blob.n_bytes, &out_size);
+      (uint8_t*)serd_base64_decode(blob_str, blob.n_bytes, &out_size);
     assert(out_size == size);
 
     for (size_t i = 0; i < size; ++i) {
@@ -147,6 +146,58 @@ test_blob_to_node(void)
     serd_node_free(&blob);
     serd_free(out);
     free(data);
+  }
+}
+
+static void
+test_base64_decode(void)
+{
+  static const char* const decoded     = "test";
+  static const size_t      decoded_len = 4U;
+
+  // Test decoding clean base64
+  {
+    static const char* const encoded     = "dGVzdA==";
+    static const size_t      encoded_len = 8U;
+
+    size_t      size = 0U;
+    void* const data =
+      serd_base64_decode((const uint8_t*)encoded, encoded_len, &size);
+
+    assert(data);
+    assert(size == decoded_len);
+    assert(!strncmp((const char*)data, decoded, decoded_len));
+    serd_free(data);
+  }
+
+  // Test decoding equivalent dirty base64 with ignored junk characters
+  {
+    static const char* const encoded     = "d-G#V!z*d(A$%==";
+    static const size_t      encoded_len = 13U;
+
+    size_t      size = 0U;
+    void* const data =
+      serd_base64_decode((const uint8_t*)encoded, encoded_len, &size);
+
+    assert(data);
+    assert(size == decoded_len);
+    assert(!strncmp((const char*)data, decoded, decoded_len));
+    serd_free(data);
+  }
+
+  // Test decoding effectively nothing
+  {
+    static const char* const encoded     = "@#$%";
+    static const size_t      encoded_len = 4U;
+
+    size_t      size = 0U;
+    void* const data =
+      serd_base64_decode((const uint8_t*)encoded, encoded_len, &size);
+
+    assert(data);
+    assert(!size);
+    // Contents of data are undefined
+    serd_free(data);
   }
 }
 
@@ -183,6 +234,8 @@ test_node_from_string(void)
 static void
 test_node_from_substring(void)
 {
+  static const uint8_t utf8_str[] = {'l', 0xC3, 0xB6, 'n', 'g', 0};
+
   SerdNode empty = serd_node_from_substring(SERD_LITERAL, NULL, 32);
   assert(!empty.buf && !empty.n_bytes && !empty.n_chars && !empty.flags &&
          !empty.type);
@@ -194,6 +247,30 @@ test_node_from_substring(void)
   a_b = serd_node_from_substring(SERD_LITERAL, USTR("a\"bc"), 10);
   assert(a_b.n_bytes == 4 && a_b.n_chars == 4 && a_b.flags == SERD_HAS_QUOTE &&
          !strncmp((const char*)a_b.buf, "a\"bc", 4));
+
+  SerdNode utf8 = serd_node_from_substring(SERD_LITERAL, utf8_str, 5);
+  assert(utf8.n_bytes == 5 && utf8.n_chars == 4 && !utf8.flags &&
+         !strncmp((const char*)utf8.buf, (const char*)utf8_str, 6));
+}
+
+static void
+test_uri_node_from_node(void)
+{
+  const SerdNode string      = serd_node_from_string(SERD_LITERAL, USTR("s"));
+  SerdNode       string_node = serd_node_new_uri_from_node(&string, NULL, NULL);
+  assert(!string_node.n_bytes);
+  serd_node_free(&string_node);
+
+  const SerdNode nouri      = {NULL, 0U, 0U, 0U, SERD_URI};
+  SerdNode       nouri_node = serd_node_new_uri_from_node(&nouri, NULL, NULL);
+  assert(!nouri_node.n_bytes);
+  serd_node_free(&nouri_node);
+
+  const SerdNode uri =
+    serd_node_from_string(SERD_URI, USTR("http://example.org/p"));
+  SerdNode uri_node = serd_node_new_uri_from_node(&uri, NULL, NULL);
+  assert(uri_node.n_bytes == 20U);
+  serd_node_free(&uri_node);
 }
 
 int
@@ -203,10 +280,10 @@ main(void)
   test_double_to_node();
   test_integer_to_node();
   test_blob_to_node();
+  test_base64_decode();
   test_node_equals();
   test_node_from_string();
   test_node_from_substring();
-
-  printf("Success\n");
+  test_uri_node_from_node();
   return 0;
 }

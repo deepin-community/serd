@@ -1,23 +1,10 @@
-/*
-  Copyright 2011-2020 David Robillard <d@drobilla.net>
+// Copyright 2011-2023 David Robillard <d@drobilla.net>
+// SPDX-License-Identifier: ISC
 
-  Permission to use, copy, modify, and/or distribute this software for any
-  purpose with or without fee is hereby granted, provided that the above
-  copyright notice and this permission notice appear in all copies.
+#ifndef SERD_SRC_STRING_UTILS_H
+#define SERD_SRC_STRING_UTILS_H
 
-  THIS SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-*/
-
-#ifndef SERD_STRING_UTILS_H
-#define SERD_STRING_UTILS_H
-
-#include "serd/serd.h"
+#include <serd/serd.h>
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -47,14 +34,14 @@ is_digit(const int c)
   return in_range(c, '0', '9');
 }
 
-/* RFC2234: HEXDIG ::= DIGIT / "A" / "B" / "C" / "D" / "E" / "F" */
+/** RFC2234: HEXDIG ::= DIGIT / "A" / "B" / "C" / "D" / "E" / "F" */
 static inline bool
 is_hexdig(const int c)
 {
   return is_digit(c) || in_range(c, 'A', 'F');
 }
 
-/* Turtle / JSON / C: XDIGIT ::= DIGIT / A-F / a-f */
+/** Turtle / JSON / C: XDIGIT ::= DIGIT / A-F / a-f */
 static inline bool
 is_xdigit(const int c)
 {
@@ -64,17 +51,7 @@ is_xdigit(const int c)
 static inline bool
 is_space(const char c)
 {
-  switch (c) {
-  case ' ':
-  case '\f':
-  case '\n':
-  case '\r':
-  case '\t':
-  case '\v':
-    return true;
-  default:
-    return false;
-  }
+  return c == ' ' || (c >= '\t' && c <= '\r');
 }
 
 static inline bool
@@ -84,7 +61,7 @@ is_print(const int c)
 }
 
 static inline bool
-is_base64(const uint8_t c)
+is_base64(const int c)
 {
   return is_alpha(c) || is_digit(c) || c == '+' || c == '/' || c == '=';
 }
@@ -102,61 +79,58 @@ serd_substrlen(const uint8_t* str,
                size_t*        n_bytes,
                SerdNodeFlags* flags);
 
+static inline uint8_t
+hex_digit_value(const uint8_t c)
+{
+  return (uint8_t)((c > '9') ? ((c & ~0x20) - 'A' + 10) : (c - '0'));
+}
+
 static inline char
 serd_to_upper(const char c)
 {
   return (char)((c >= 'a' && c <= 'z') ? c - 32 : c);
 }
 
-static inline int
-serd_strncasecmp(const char* s1, const char* s2, size_t n)
+SERD_PURE_FUNC static inline int
+serd_strcasecmp(const char* s1, const char* s2)
 {
-  for (; n > 0 && *s2; s1++, s2++, --n) {
-    if (serd_to_upper(*s1) != serd_to_upper(*s2)) {
-      return ((*(const uint8_t*)s1 < *(const uint8_t*)s2) ? -1 : +1);
+  while (*s1 && *s2) {
+    const char c1 = serd_to_upper(*s1++);
+    const char c2 = serd_to_upper(*s2++);
+    if (c1 != c2) {
+      return (c1 < c2) ? -1 : +1;
     }
   }
 
-  return 0;
+  const char c1 = serd_to_upper(*s1);
+  const char c2 = serd_to_upper(*s2);
+  return (c1 == c2) ? 0 : (c1 < c2) ? -1 : +1;
 }
 
-static inline uint32_t
-utf8_num_bytes(const uint8_t c)
+static inline uint8_t
+utf8_num_bytes(const uint8_t leading)
 {
-  if ((c & 0x80) == 0) { // Starts with `0'
-    return 1;
-  }
-
-  if ((c & 0xE0) == 0xC0) { // Starts with `110'
-    return 2;
-  }
-
-  if ((c & 0xF0) == 0xE0) { // Starts with `1110'
-    return 3;
-  }
-
-  if ((c & 0xF8) == 0xF0) { // Starts with `11110'
-    return 4;
-  }
-
-  return 0;
+  return ((leading & 0x80U) == 0x00U)   ? 1U  // Starts with `0'
+         : ((leading & 0xE0U) == 0xC0U) ? 2U  // Starts with `110'
+         : ((leading & 0xF0U) == 0xE0U) ? 3U  // Starts with `1110'
+         : ((leading & 0xF8U) == 0xF0U) ? 4U  // Starts with `11110'
+                                        : 0U; // Invalid
 }
 
 /// Return the code point of a UTF-8 character with known length
 static inline uint32_t
-parse_counted_utf8_char(const uint8_t* utf8, size_t size)
+parse_counted_utf8_char(const uint8_t* const utf8, const uint8_t size)
 {
-  uint32_t c = utf8[0] & ((1u << (8 - size)) - 1);
+  uint32_t c = utf8[0] & ((1U << (8U - size)) - 1U);
   for (size_t i = 1; i < size; ++i) {
-    const uint8_t in = utf8[i] & 0x3F;
-    c                = (c << 6) | in;
+    c = (c << 6U) | (utf8[i] & 0x3FU);
   }
   return c;
 }
 
 /// Parse a UTF-8 character, set *size to the length, and return the code point
 static inline uint32_t
-parse_utf8_char(const uint8_t* utf8, size_t* size)
+parse_utf8_char(const uint8_t* const utf8, uint8_t* const size)
 {
   switch (*size = utf8_num_bytes(utf8[0])) {
   case 1:
@@ -166,8 +140,8 @@ parse_utf8_char(const uint8_t* utf8, size_t* size)
     return parse_counted_utf8_char(utf8, *size);
   default:
     *size = 0;
-    return 0;
+    return 0U;
   }
 }
 
-#endif // SERD_STRING_UTILS_H
+#endif // SERD_SRC_STRING_UTILS_H
